@@ -13,9 +13,13 @@ width: 100%;
 height: 80px;
 border-bottom: 1px solid #fff;
 background: rgba(0, 0, 0, .3);
--webkit-backdrop-filter: blur(5px);
-backdrop-filter: blur(5px);
-position: absolute;
+-webkit-backdrop-filter: blur(15px);
+backdrop-filter: blur(15px);
+position: fixed;
+top: 0;
+left: 0;
+right: 0;
+z-index: 9999;
 `
 
 const NavTypo = styled(Typography)`
@@ -30,17 +34,18 @@ font-size: 2rem;
 const Title = styled(Typography)`
 color: #fff;
 font-size: 2rem;
+font-weight: 700;
 :hover {
     cursor: pointer;
 }
 `
 
-interface pages {
+interface Pages {
     PageName: string,
     link: string,
 }
 
-const list:pages[] = [
+const list: Pages[] = [
     {
         PageName: "Sponsors",
         link: "/sponsors"
@@ -58,7 +63,7 @@ export default function Navbar() {
 
     return (
         <NavbarDiv>
-            <Title style={{ color: '#fff', fontSize: '2rem' }} onClick={() => router.push('/')}>Marathon Record System</Title>
+            <Title onClick={() => router.push('/')}>Marathon Record System</Title>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 {list.map((e, key) => {
                     return (
