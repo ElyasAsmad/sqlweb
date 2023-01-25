@@ -42,10 +42,6 @@ interface pages {
 
 const list:pages[] = [
     {
-        PageName: "Event",
-        link: "/event"
-    },
-    {
         PageName: "Sponsors",
         link: "/sponsors"
     },
@@ -66,7 +62,7 @@ export default function Navbar() {
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 {list.map((e, key) => {
                     return (
-                        <NavTypo style={{ fontSize: '1.5rem', margin: '10px' }} key={key}>{e.PageName}</NavTypo>
+                        <NavTypo style={{ fontSize: '1.5rem', margin: '10px' }} key={key} onClick={() => router.push(e.link)}>{e.PageName}</NavTypo>
                     )
                 })}
             </div>
