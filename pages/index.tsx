@@ -10,6 +10,7 @@ import { Router, useRouter } from 'next/router'
 import Link from 'next/link'
 import handledb from './api/handledb'
 import { eventNames } from 'process'
+import HandleComponent from '@/components/HandleComponent'
 
 const DisplayContainer = styled.div`
     display: flex;
@@ -17,7 +18,7 @@ const DisplayContainer = styled.div`
     width: 80vw;
     height: auto;
     justify-content: center;
-    margin-top: 200px;
+    margin-top: 100px;
 `
 
 interface SelectedBtn {
@@ -73,32 +74,6 @@ width: 100%;
 margin-left: 100px;
 `
 
-const ContBox = styled(Box)`
-    display: flex;
-    flex-direction: row;
-    justify-content: space-between;
-    height: auto;
-    width: 50%;
-    border-radius: 30px;
-    background: rgba(255, 255, 255, 0.3);
-    -webkit-backdrop-filter: blur(5px);
-    backdrop-filter: blur(5px);
-    padding: 20px;
-    color: #000;
-    margin-top: 10px;
-    :hover {
-        background: rgba(0, 0, 0, 0.3);
-        color: #fff;
-        cursor: pointer;
-    }
-`
-
-const Row = styled.div`
-display: flex;
-flex-direction: column;
-justify-content: center;
-`
-
 const dbEvent = collection(database, 'Event')
 const dbOrganization = collection(database, 'Organization')
 const dbContestant = collection(database, 'Contestant')
@@ -119,7 +94,7 @@ interface Organization {
 	tel_no: number
 }
 
-interface Contestant {
+export interface Contestant {
 	ID: string
 	age: number
 	event_id: string
@@ -153,35 +128,6 @@ export default function Home() {
     const [cGender, setCGender] = useState("Female")
 
 	const router = useRouter()
-
-    const HandleComponent = (id: string) => {
-
-        return (
-            <>
-                <Typography style={{ fontSize: '2rem', fontWeight: 600 }}>{currentEventName}</Typography>
-                {contestantArr.map((e, key) => {
-                    if(e.event_id === currentEvent) {
-                        
-                        if(e.gender === 'M') setCGender("Male")
-
-                        return (
-                            <ContBox key={key}>
-                                <Row>
-                                    <Typography style={{ fontSize: '1.5rem' }}>{e.f_name}</Typography>
-                                    <Typography>{e.age} years old</Typography>
-                                </Row>
-                                <Row>
-                                    <Typography>{cGender}</Typography>
-                                    <Typography>{e.tel_no}</Typography>
-                                </Row>
-                            </ContBox>
-                        )
-                    }
-                })}
-            </>
-        )
-
-    }
 
     const getDbEvent = () => {
         getDocs(dbEvent).then((data) => {
@@ -218,7 +164,7 @@ export default function Home() {
         if(currentEvent !== null) {
             setCurrentEvent(id)
         }
-        handledb(currentEvent)
+        // handledb(currentEvent)
     }
 
     useEffect(() => {
@@ -245,7 +191,7 @@ export default function Home() {
                             return (
                                 <EventBox key={key} onClick={() => {
                                     handleOnClick(item.ID)
-                                }} selected={currentEvent === item.ID ? true : false}>
+                                }} selected={currentEvent === item.ID}>
                                     <InBoxRow>
                                         <InBoxTypo style={{ fontWeight: 500, fontSize: '1rem' }}>{item.name}</InBoxTypo>
                                     </InBoxRow>
@@ -254,7 +200,15 @@ export default function Home() {
                         })}
                     </EventContainer>
                     <EventDetailsContainer>
-                        {HandleComponent(currentEvent)}
+                        {/* {HandleComponent(currentEvent)} */}
+                        <HandleComponent
+                            id={currentEvent}
+                            currentEvent={currentEvent}
+                            currentEventName={currentEventName}
+                            cGender={cGender}
+                            setCGender={setCGender}
+                            contestantArr={contestantArr}
+                        />
                     </EventDetailsContainer>
                 </DisplayContainer>
             </main>
