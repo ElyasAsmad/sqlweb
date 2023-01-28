@@ -7,12 +7,10 @@ import { Typography, Box, Button } from '@mui/material'
 import { app, database } from '../firebase/clientApp'
 import { collection, addDoc, getDocs, Timestamp } from 'firebase/firestore'
 import { Router, useRouter } from 'next/router'
-import Link from 'next/link'
-import handledb from './api/handledb'
 import { eventNames } from 'process'
 import HandleComponent from '@/components/HandleComponent'
 
-const DisplayContainer = styled.div`
+export const DisplayContainer = styled.div`
     display: flex;
     flex-direction: row;
     width: 80vw;
@@ -55,18 +53,18 @@ const InBoxRow = styled.div`
 `
 
 const InBoxTypo = styled(Typography)`
-    font-size: 1.5rem;
-    font-weight: 500;
+    font-size: 1.2rem;
+    font-weight: 600;
 `
 
-const EventContainer = styled.div`
+export const EventContainer = styled.div`
 color: #fff;
 display: flex;
 flex-direction: column;
 justify-content: space-between;
 `
 
-const EventDetailsContainer = styled.div`
+export const EventDetailsContainer = styled.div`
 color: #fff;
 display: flex;
 flex-direction: column;
@@ -87,7 +85,7 @@ interface Event {
     total_contestant: number
 }
 
-interface Organization {
+export interface Organization {
 	ID: string
 	email: string
 	name: string
@@ -159,12 +157,13 @@ export default function Home() {
 	
     }
 
-    const handleOnClick = (id: string) => {
-        // BABI BUG
+    const handleOnClick = (id: string, name: string, date: Timestamp, location: string) => {
         if(currentEvent !== null) {
             setCurrentEvent(id)
+            setCurrentEventName(name)
+            setCurrentEventDate(date)
+            setCurrentEventLocation(location)
         }
-        // handledb(currentEvent)
     }
 
     useEffect(() => {
@@ -185,13 +184,15 @@ export default function Home() {
             </Head>
             <main className={styles.mainContainer}>
                 <Navbar />
-                <DisplayContainer>
+                <DisplayContainer style={{ marginTop: '200px' }}>
                     <EventContainer>
                         {eventArr.map((item, key) => {						  
                             return (
                                 <EventBox key={key} onClick={() => {
-                                    handleOnClick(item.ID)
-                                }} selected={currentEvent === item.ID}>
+                                    handleOnClick(item.ID, item.name, item.date, item.location)
+                                }} selected={currentEvent === item.ID}
+                                style={{ width: '250px', height: '80px' }}
+                                >
                                     <InBoxRow>
                                         <InBoxTypo style={{ fontWeight: 500, fontSize: '1rem' }}>{item.name}</InBoxTypo>
                                     </InBoxRow>
@@ -200,7 +201,6 @@ export default function Home() {
                         })}
                     </EventContainer>
                     <EventDetailsContainer>
-                        {/* {HandleComponent(currentEvent)} */}
                         <HandleComponent
                             id={currentEvent}
                             currentEvent={currentEvent}
@@ -208,6 +208,8 @@ export default function Home() {
                             cGender={cGender}
                             setCGender={setCGender}
                             contestantArr={contestantArr}
+                            currentDate={currentEventDate}
+                            currentLocation={currentEventLocation}
                         />
                     </EventDetailsContainer>
                 </DisplayContainer>
