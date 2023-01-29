@@ -1,16 +1,23 @@
-import { Box, Button, Modal, Typography } from "@mui/material"
+import { Box, Button, Modal, Typography, Dialog, SxProps, Theme, Slide, TextField, MenuItem } from "@mui/material"
 import styled from '@emotion/styled'
-import { Contestant } from '../pages/index'
+import { Contestant, dbContestant, dbEvent, Event } from '../pages/index'
 import { Dispatch, SetStateAction, useEffect, useState } from "react"
-import { Timestamp } from "firebase/firestore"
+import { addDoc, doc, increment, setDoc, Timestamp, updateDoc } from "firebase/firestore"
 import { PlusOutlined } from "@ant-design/icons"
+import React from 'react'
+import { TransitionProps } from "@mui/material/transitions"
+import { database } from "@/firebase/clientApp"
+import { Event as FirebaseEventItem } from "../pages/index"
+import { toast } from 'react-toastify'
+import PhoneInput from 'react-phone-number-input/input'
+import { E164Number } from "libphonenumber-js/types"
+import PhoneNumber from "./PhoneNumber"
 
 const ContBox = styled(Box)`
 display: flex;
 flex-direction: row;
 justify-content: space-between;
 height: auto;
-width: 50%;
 border-radius: 30px;
 background: rgba(255, 255, 255, 0.3);
 -webkit-backdrop-filter: blur(5px);
@@ -52,19 +59,19 @@ const Row = styled.div`
     justify-content: center;
 `
 
-const InputText = styled.input`
-height: 40px;
-width: 500px;
-background-color: rgba(0,0,0,0);
+export const InputText = styled(TextField)`
+// height: 40px;
+width: 100%;
+// background-color: rgba(0,0,0,0);
 border-radius: 20px;
-border: 1px solid #000;
+// border: 1px solid #000;
 margin-bottom: 10px;
-color: #000;
-padding-inline: 20px;
-font-size: 1rem;
-:active: {
-    border-width: 0;
-}
+// color: #000;
+// padding-inline: 20px;
+// font-size: 1rem;
+// :active: {
+//     border-width: 0;
+// }
 `
 
 const ConfirmBtn = styled.div`
@@ -97,45 +104,72 @@ border: 1px solid #fff;
 const FormTitle = styled(Typography)`
 font-size: 1rem;
 font-weight: 500;
+width: 100%;
 `
 
-const boxStyle = {
-    position: 'absolute' as 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: 'translate(-50%, -50%)',
+const boxStyle: SxProps<Theme> = {
     width: '600px',
     backgroundColor: 'rgba(255, 255, 255, 0.5)',
     color: '#000',
     borderRadius: '30px',
     boxShadow: 24,
-    display: 'flex' as 'flex',
-    flexDirection: 'column' as 'column',
+    display: 'flex',
+    flexDirection: 'column',
     height: 'auto',
-    justifyContent: 'center' as 'center',
-    alignItems: 'center' as 'center',
+    justifyContent: 'center',
+    alignItems: 'center',
     padding: '20px'
 }
 
 interface IHandleComponent {
-    id: string;
-    currentEventName: string;
-    currentEvent: string;
-    contestantArr: Contestant[];
-    cGender: string;
-    setCGender: Dispatch<SetStateAction<string>>;
-    currentDate?: Timestamp;
-    currentLocation: string;
+    eventItem: FirebaseEventItem;
+    contestantItems: Contestant[];
+    eventID: string;
 }
 
-const HandleComponent = ({ id, currentEventName, currentEvent, contestantArr, cGender, setCGender, currentDate, currentLocation }: IHandleComponent) => {
+const genderOptions = [
+    {
+        name: 'Choose a gender',
+        value: ''
+    },
+    {
+        name: 'Male',
+        value: 'M'
+    },
+    {
+        name: 'Female',
+        value: 'F'
+    }
+]
+
+const Transition = React.forwardRef(function Transition(
+    props: TransitionProps & {
+      children: React.ReactElement<any, any>;
+    },
+    ref: React.Ref<unknown>,
+) {
+    return <Slide direction="up" ref={ref} {...props} />;
+});
+
+const HandleComponent = ({ eventItem, contestantItems, eventID }: IHandleComponent) => {
+
+    const { 
+        name: currentEventName, 
+        location: currentLocation,
+        _firestoreID: firestoreID,
+        ID: currentEvent
+    } = eventItem;
 
     const [showModal, setShowModal] = useState(false)
     const [showAddModal, setShowAddModal] = useState(false);
 
-
     const [enteredName, setEnteredName] = useState('')
     const [enteredLoc, setEnteredLoc] = useState('')
+
+    const [ contestantName, setContestantName ] = useState('')
+    const [ contestantAge, setContestantAge ] = useState<number>(18)
+    const [ contestantGender, setContestantGender ] = useState('')
+    const [ phoneNumber, setPhoneNumber ] = useState<any>()
 
     const handleOpen = () => {
         setShowModal(true)
@@ -154,14 +188,91 @@ const HandleComponent = ({ id, currentEventName, currentEvent, contestantArr, cG
     }
 
     useEffect(() => {
-        setEnteredName(currentEventName)
-        setEnteredLoc(currentLocation)
-    })
+
+        if (currentEventName?.length !== 0 || currentLocation?.length !== 0) {
+            setEnteredName(currentEventName)
+            setEnteredLoc(currentLocation)
+        }
+
+    }, [currentEventName, currentLocation])
+
+    const updateEvent = async () => {
+
+        const eventRef = doc(database, 'Event', eventID)
+
+        const updatedItem = {
+            ...eventItem,
+            name: enteredName,
+            location: enteredLoc
+        }
+
+        toast.promise(
+            updateDoc(eventRef, updatedItem),
+            {
+                success: 'Event updated successfully!',
+                error: 'An error has occured :/ Please try again.',
+                pending: 'We are updating your data!'
+            }
+        )
+        .then(() => {
+            handleClose()
+        })
+
+    }
+
+    const addParticipant = async () => {
+
+        const eventNameCode = currentEventName.split(' ').slice(0, 2).map((item) => item[0]).join('')
+
+        const contestantData: Contestant = {
+            ID: `${eventNameCode}${eventItem.participantNumber}`,
+            age: contestantAge,
+            event_id: currentEvent,
+            f_name: contestantName,
+            gender: contestantGender,
+            tel_no: phoneNumber,
+        }
+
+        // await addDoc(dbContestant, contestantData)
+
+        const eventDocRef = doc(dbEvent, eventID)
+
+        // await updateDoc(eventDocRef, {
+        //     participantNumber: increment(1)
+        // })
+
+        toast.promise(
+            Promise.all([
+                addDoc(dbContestant, contestantData),
+                updateDoc(eventDocRef, {
+                    participantNumber: increment(1)
+                })
+            ]),
+            {
+                success: 'Participants updated successfully!',
+                error: 'An error has occured :/ Please try again.',
+                pending: 'We are adding a participant. Please wait...'
+            }
+        )
+        .then(() => {
+            setContestantName('')
+            setContestantAge(18)
+            setContestantGender('')
+            setPhoneNumber('')
+            return
+        })
+        .then(() => {
+
+            handleCloseAdd()
+
+        })
+
+    }
 
     return (
         <>
-            <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', width: '50%' }}>
-                <div>
+            <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <div style={{ flexGrow: 1 }}>
                     <Typography style={{ fontSize: '2rem', fontWeight: 600 }}>{currentEventName}</Typography>
                     <Typography style={{ fontSize: '1.5rem', fontWeight: 500 }}>{currentLocation}</Typography>
                 </div>
@@ -174,69 +285,76 @@ const HandleComponent = ({ id, currentEventName, currentEvent, contestantArr, cG
                     </EditBtn>
                 </div>
             </div>
-            {contestantArr.map((e, key) => {
-                if (e.event_id === currentEvent) {                    
-                    // if (e.gender === 'M') setCGender("Male")
-                    return (
-                        <ContBox key={key}>
-                            <Row>
-                                <Typography style={{ fontSize: '1.5rem' }}>{e.f_name}</Typography>
-                                <Typography>{e.age} years old</Typography>
-                            </Row>
-                            <Row>
-                                <Typography>{cGender}</Typography>
-                                <Typography>{e.tel_no}</Typography>
-                            </Row>
-                        </ContBox>
-                    )
-                }
-            })}
-            <Modal
-                open={showModal}
-                onClose={() => handleClose()}
-            >
-                <Box sx={boxStyle}>
-                    <Typography style={{ fontSize: '1.5rem', fontWeight: 600 }}>Edit Event</Typography>
-                    <InputText type='text' placeholder={enteredName} />
-                    <InputText type='text' placeholder={enteredLoc} />
-                    <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '500px' }}>
-                        <CancelBtn onClick={() => handleClose()}>
-                            <Typography>Cancel</Typography>
-                        </CancelBtn>
-                        <ConfirmBtn>
-                            <Typography>Confirm edit</Typography>
-                        </ConfirmBtn>
-                    </div>
+            {contestantItems.filter((item) => item.event_id === currentEvent).map((item) => (
 
-                </Box>
-            </Modal>
-            <Modal
+                <ContBox key={item._firestoreID}>
+                    <Row>
+                        <Typography style={{ fontSize: '1.5rem' }}>{item.f_name}</Typography>
+                        <Typography>{item.age} years old</Typography>
+                    </Row>
+                    <Row>
+                        <Typography>{item.gender === 'M' ? 'Male' : 'Female'}</Typography>
+                        <Typography>{item.tel_no}</Typography>
+                    </Row>
+                </ContBox>
+
+            ))}
+            <React.Fragment>
+                <Dialog
+                    TransitionComponent={Transition}
+                    open={showModal}
+                    onClose={() => handleClose()}
+                >
+                    <Box sx={boxStyle}>
+                        <Typography sx={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: 2 }}>Edit Event</Typography>
+                        <InputText label='Event Name' type='text' value={enteredName} onChange={(e) => setEnteredName(e.target.value)} />
+                        <InputText label='Event Location' type='text' value={enteredLoc} onChange={(e) => setEnteredLoc(e.target.value)} />
+                        <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '500px' }}>
+                            <CancelBtn onClick={() => handleClose()}>
+                                <Typography>Cancel</Typography>
+                            </CancelBtn>
+                            <ConfirmBtn onClick={updateEvent}>
+                                <Typography>Confirm edit</Typography>
+                            </ConfirmBtn>
+                        </div>
+
+                    </Box>
+                </Dialog>
+            </React.Fragment>
+            <Dialog
                 open={showAddModal}
+                TransitionComponent={Transition}
                 onClose={() => handleCloseAdd()}
             >
                 <Box sx={boxStyle}>
-                    <Typography style={{ fontSize: '1.5rem', fontWeight: 600 }}>Add Contestant</Typography>
-                    <div>
-                        <FormTitle>Name</FormTitle>
-                        <InputText type='text' />
-                    </div>
-                    <div>
-                        <FormTitle>Age</FormTitle>
-                        <InputText type='number' />
-                    </div>
-                    <div>
-                        <FormTitle>Gender</FormTitle>
-                        <InputText type='text' />
-                    </div>
-                    <div>
-                        <FormTitle>Phone number</FormTitle>
-                        <InputText type='number' />
-                    </div>
-                    <ConfirmBtn>
+                    <Typography sx={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: 2 }}>Add Contestant</Typography>
+                    <InputText type='text' label='Name' value={contestantName} onChange={e => setContestantName(e.target.value)} />
+                    <InputText type='number' label='Age' value={contestantAge} onChange={e => setContestantAge(parseInt(e.target.value))} />
+                    <InputText
+                        select
+                        value={contestantGender}
+                        onChange={(e) => setContestantGender(e.target.value)}
+                        label="Gender"
+                        defaultValue=""
+                    >
+                        {genderOptions.map((option, key) => (
+                            <MenuItem key={option.value} value={option.value} disabled={key === 0}>
+                                {option.name}
+                            </MenuItem>
+                        ))}
+                    </InputText>
+                    <PhoneInput 
+                        defaultCountry='MY'
+                        value={phoneNumber}
+                        onChange={setPhoneNumber}
+                        // @ts-ignore
+                        inputComponent={PhoneNumber}
+                    />
+                    <ConfirmBtn onClick={addParticipant}>
                         <Typography>Add participant</Typography>
                     </ConfirmBtn>
                 </Box>
-            </Modal>
+            </Dialog>
         </>
     )
 
