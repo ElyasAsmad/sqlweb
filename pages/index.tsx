@@ -1,22 +1,23 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import Head from 'next/head'
 import styles from '@/styles/Home.module.css'
 import styled from '@emotion/styled'
 import Navbar from '@/components/Navbar'
-import { Typography, Box, Button } from '@mui/material'
+import { Typography, Box, Button, Container } from '@mui/material'
 import { app, database } from '../firebase/clientApp'
-import { collection, addDoc, getDocs, Timestamp } from 'firebase/firestore'
+import { collection, addDoc, getDocs, Timestamp, onSnapshot } from 'firebase/firestore'
 import { Router, useRouter } from 'next/router'
 import { eventNames } from 'process'
 import HandleComponent from '@/components/HandleComponent'
+import HomeLoading from '@/components/HomeLoading'
+import { ToastContainer } from 'react-toastify'
 
-export const DisplayContainer = styled.div`
+export const DisplayContainer = styled(Container)`
     display: flex;
     flex-direction: row;
-    width: 80vw;
     height: auto;
     justify-content: center;
-    margin-top: 100px;
+    margin-top: 120px;
 `
 
 interface SelectedBtn {
@@ -72,17 +73,19 @@ width: 100%;
 margin-left: 100px;
 `
 
-const dbEvent = collection(database, 'Event')
+export const dbEvent = collection(database, 'Event')
 const dbOrganization = collection(database, 'Organization')
-const dbContestant = collection(database, 'Contestant')
+export const dbContestant = collection(database, 'Contestant')
 
-interface Event {
-    ID: string
-    date: Timestamp
-    location: string
-    name: string
-    org_id: string
-    total_contestant: number
+export interface Event {
+    _firestoreID: string;
+    ID: string;
+    date?: Timestamp;
+    location: string;
+    name: string;
+    org_id: string;
+    total_contestant: number;
+    participantNumber: number;
 }
 
 export interface Organization {
@@ -93,7 +96,8 @@ export interface Organization {
 }
 
 export interface Contestant {
-	ID: string
+	_firestoreID?: string;
+    ID: string
 	age: number
 	event_id: string
 	f_name: string
@@ -109,34 +113,24 @@ interface Res {
     currentEventOrgName: string
 }
 
+type EventMap = {
+    [id: string]: Event;
+}
+
 export default function Home() {
 
-    const [eventArr, setEventArr] = useState<Event[]>([])
 	const [orgArr, setOrgArr] = useState<Organization[]>([])
 	const [contestantArr, setContestantArr] = useState<Contestant[]>([])
-    const [mainState, setMainState] = useState(true)
-    const [currentEvent, setCurrentEvent] = useState('')
 
-    const [currentEventName, setCurrentEventName] = useState('')
-    const [currentEventLocation, setCurrentEventLocation] = useState('')
-    const [currentEventDate, setCurrentEventDate] = useState<Timestamp>()
-    const [currentEventOrgId, setCurrentEventOrgId] = useState('')
-    const [currentEventOrgName, setCurrentEventOrgName] = useState('')
+	const [eventMap, setEventMap] = useState<EventMap>({})
 
-    const [cGender, setCGender] = useState("Female")
+    const [ eventLoading, setEventLoading ] = useState(true)
+    
+    const [currentFirestoreID, setCurrentFirestoreID] = useState('')
 
 	const router = useRouter()
 
     const getDbEvent = () => {
-        getDocs(dbEvent).then((data) => {
-            
-			const DataEvent = data.docs.map((item) => {
-                return { ...item.data() } as Event
-            })
-
-			setEventArr(DataEvent)
-
-        })
 
 		getDocs(dbOrganization).then((data) => {
 			const DataOrg = data.docs.map((item) => {
@@ -146,28 +140,47 @@ export default function Home() {
 			setOrgArr(DataOrg)
 		})
 	
-		getDocs(dbContestant).then((data) => {
-
-			const DataContestant = data.docs.map((item) => {
-				return { ...item.data() } as Contestant
-			})
-			
-			setContestantArr(DataContestant)
-		})
-	
     }
 
-    const handleOnClick = (id: string, name: string, date: Timestamp, location: string) => {
-        if(currentEvent !== null) {
-            setCurrentEvent(id)
-            setCurrentEventName(name)
-            setCurrentEventDate(date)
-            setCurrentEventLocation(location)
-        }
+    const onClickHandler = (id: string) => {
+        setCurrentFirestoreID(id)
     }
 
     useEffect(() => {
         getDbEvent()
+
+        const eventUnsubscribe = onSnapshot(dbEvent, (snapshot) => {
+
+            setEventLoading(true)
+
+            let eventMap: EventMap = {};
+
+            snapshot.forEach((doc) => {
+                eventMap[doc.id] = doc.data() as Event
+            })
+
+            setEventMap(eventMap)
+
+            setEventLoading(false)
+
+        });
+
+        const contestantsUnsubscribe = onSnapshot(dbContestant, (snapshot) => {
+            
+            const items: Contestant[] = []
+
+            snapshot.forEach((doc) => {
+                items.push({ ...doc.data() as Contestant, _firestoreID: doc.id })
+            })
+
+            setContestantArr(items)
+
+        });
+
+        return () => {
+            eventUnsubscribe()
+            contestantsUnsubscribe()
+        }
         
     }, [])
 
@@ -184,36 +197,40 @@ export default function Home() {
             </Head>
             <main className={styles.mainContainer}>
                 <Navbar />
-                <DisplayContainer style={{ marginTop: '200px' }}>
+                <DisplayContainer maxWidth='xl'>
                     <EventContainer>
-                        {eventArr.map((item, key) => {						  
+                        {Object.entries(eventMap).map(([firestoreID, item]) => {
                             return (
-                                <EventBox key={key} onClick={() => {
-                                    handleOnClick(item.ID, item.name, item.date, item.location)
-                                }} selected={currentEvent === item.ID}
+                                <EventBox key={firestoreID} onClick={() => {
+                                    onClickHandler(firestoreID)
+                                }} selected={currentFirestoreID === firestoreID}
                                 style={{ width: '250px', height: '80px' }}
                                 >
                                     <InBoxRow>
-                                        <InBoxTypo style={{ fontWeight: 500, fontSize: '1rem' }}>{item.name}</InBoxTypo>
+                                        <InBoxTypo style={{ fontWeight: 600, fontSize: '1.2rem' }}>{item.name}</InBoxTypo>
                                     </InBoxRow>
                                 </EventBox>
                             )
                         })}
                     </EventContainer>
                     <EventDetailsContainer>
-                        <HandleComponent
-                            id={currentEvent}
-                            currentEvent={currentEvent}
-                            currentEventName={currentEventName}
-                            cGender={cGender}
-                            setCGender={setCGender}
-                            contestantArr={contestantArr}
-                            currentDate={currentEventDate}
-                            currentLocation={currentEventLocation}
-                        />
+                        {
+                            (!eventLoading && currentFirestoreID.length > 0) ? (
+                                <HandleComponent 
+                                    eventItem={eventMap[currentFirestoreID]}
+                                    eventID={currentFirestoreID}
+                                    contestantItems={contestantArr}
+                                />
+                            ) : null
+                        }
                     </EventDetailsContainer>
                 </DisplayContainer>
             </main>
+            <ToastContainer
+                bodyStyle={{
+                    fontFamily: 'Satoshi'
+                }}
+            />
         </>
     )
 }
